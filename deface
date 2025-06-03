@@ -23,7 +23,6 @@ fi
 # if [[ ! $REPLY =~ ^[Yy]$ ]]; then
 #   exit 3
 # fi
-
 if ! git diff-index --quiet HEAD --; then
   echo "⛔️ ERROR: You have uncommitted changes. This script WILL NOT run with uncommitted changes."
   echo "Please commit or stash your changes first to prevent data loss."
@@ -33,32 +32,85 @@ fi
 # Define the minimum length for a meaningful match
 MIN_LENGTH=4
 
-# List of fancy hex words to search for (only meaningful ones, minimum 4 characters)
+# COMPREHENSIVE list of words that can be spelled with hex characters (0-9, a-f)
+# Organized alphabetically for easier maintenance
 fancy_words=(
-  # Pure Hexadecimal Words (4+ chars)
-  "acce55" "babe" "bade" "bead" "beef" "cafe" "cede" "c0de" "c0c0a" "c0ffee"
-  "dead" "deaf" "deed" "defa" "deface" "face" "facade" "fade" "faded" "feed"
-  "f00d" "f1fe" "fa1afe1"
+  # Pure Hex Words (a-f only)
+  "ace" "aced" "bad" "bade" "bead" "beef" "cab" "cad" "cafe" "cede"
+  "dace" "dad" "dead" "deaf" "deed" "face" "fade" "fed" "fee" "feed"
 
-  # Words Using Number-Letter Substitutions (4+ chars)
-  "1cea" "1ced" "1d1e" "1dea" "2face" "4b1e" "4cc355" "4c1d" "4dded" "4dd1c7"
-  "5eed" "5e1f" "5ca1e" "5ca1ed" "5cafe" "61f7" "8a5e" "8a8e" "8a8e1"
-  "8a11" "8a55" "8ea7" "8eef" "81a5ed" "81de" "8ad6e" "8ea57" "8e11" "8e57"
-  "9a1a" "9ee5e" "decaf" "dec0de" "d15c" "d0deca" "fa11" "fa11ed" "fa7a1"
-  "fa7e" "fa7ed" "feeb1e" "f1e1d" "f1ee7" "f1055" "f01ded" "f055a"
+  # Words with number substitutions
+  # 0 as "o"
+  "ab0de" "ab0ve" "acc0rd" "ac0rn" "ad0be" "ad0re" "aff0rd" "b0de" "b0re" "b0red"
+  "b0rn" "b0ss" "b0w" "b0x" "c0at" "c0de" "c0ed" "c0ffee" "c0ff1n" "c0ld"
+  "c0l0n" "c0l0r" "c0lt" "c0mmand" "c0nf1de" "c00l" "c0pe" "c0re" "c0rn" "c0st"
+  "c0ve" "c0ver" "c0w" "cr0c" "cr0ss" "cr0wn" "d0c" "d0e" "d0es" "d0ll"
+  "d0me" "d0ne" "d00r" "d0se" "d0te" "d0ve" "ec0" "f0e" "f0ld" "f00d"
+  "f00l" "f00t" "f0rd" "f0re" "f0rce" "f0rm" "f0rt" "f0ss" "f0x" "l0ad"
+  "l0af" "l0an" "l0be" "l0bs" "l0cal" "l0ck" "l0de" "l0ft" "l0re" "l0ss"
+  "l0st" "l0ve" "l0w" "m0at" "m0b" "m0ck" "m0de" "m0ld" "m0le" "m0ve"
+  "n0b" "n0d" "n0de" "n00b" "n00k" "n0rm" "n0se" "n0te" "0dd" "0de"
+  "0ff" "0ld" "0nce" "0ne" "0wn" "r0ad" "r0am" "r0ar" "r0be" "r0ck"
+  "r0d" "r0de" "r0le" "r00f" "r00m" "r00t" "r0se" "s0ar" "s0b" "s0d"
+  "s0da" "s0fa" "s0ft" "s0ld" "s0le" "s0n" "s00n" "s0re" "s0rt" "s0w"
+  "st0ne" "st00d" "t0ad" "t0e" "t0ne" "t00k" "t00l" "t0re" "t0ss" "v0te"
+  "w0e" "w0ke" "w0n" "w00d" "w0rd" "w0re" "w0rk" "w0rn"
 
-  # Notable Multi-word Phrases
-  "abadcab" "abaddad" "acce55c0de" "addbeef" "badbeef" "badcafe" "baddeed"
-  "babeface" "baff1ed" "ba1ded" "ba5ed" "be5afe" "bedead" "beeffeed" "b1eeded"
-  "ca5ec105ed" "c01dbeef" "c001cabe" "c001c0de" "c001dade" "d15c0bea7"
-  "deadbeef" "deadbed" "deadcafe" "deadfa11" "deafcab" "deafdad" "facedeed"
-  "facefeed" "fa15ec0de" "f1ee9a7e"
+  # 1 as "i" or "l"
+  "a1d" "a1m" "a1r" "b1d" "b1n" "b1rd" "b1t" "b1te" "ce1l" "cel1"
+  "ch1ld" "ch1ll" "cl1mb" "cl1p" "d1al" "d1ce" "d1e" "d1ed" "d1et" "d1ff"
+  "d1m" "d1me" "d1ne" "d1rt" "d1sc" "d1sh" "d1ve" "ed1t" "ev1l" "f1b"
+  "f1eld" "f1fe" "f1le" "f1ll" "f1lm" "f1nd" "f1ne" "f1re" "f1rm" "f1rst"
+  "f1sh" "f1st" "f1t" "f1ve" "f1x" "fl1p" "fl1rt" "h1de" "h1ll" "h1m"
+  "h1re" "h1ss" "h1t" "1ce" "1ced" "1dea" "1dle" "1ll" "1n" "1nch"
+  "1nk" "1nn" "1nto" "k1d" "k1ll" "k1nd" "k1ss" "k1t" "l1d" "l1e"
+  "l1fe" "l1ft" "l1ke" "l1mb" "l1me" "l1ne" "l1nk" "l1p" "l1st" "l1t"
+  "l1ve" "m1ce" "m1d" "m1le" "m1lk" "m1ll" "m1me" "m1nd" "m1ne" "m1ss"
+  "m1st" "m1tt" "m1x" "n1ce" "n1l" "n1ne" "n1p" "p1e" "p1le" "p1ll"
+  "p1n" "p1ne" "p1nk" "p1pe" "p1t" "r1b" "r1ce" "r1ch" "r1d" "r1de"
+  "r1fe" "r1ft" "r1ll" "r1m" "r1nd" "r1se" "r1sk" "r1te" "s1ck" "s1de"
+  "s1ft" "s1lk" "s1ll" "s1lt" "s1n" "s1nce" "s1nk" "s1p" "s1r" "s1re"
+  "s1t" "s1te" "s1x" "sk1d" "sk1ll" "sk1m" "sk1n" "sl1ck" "sl1de" "sl1m"
+  "sl1p" "st1ck" "st1ff" "st1ll" "t1ck" "t1de" "t1e" "t1er" "t1ff" "t1le"
+  "t1lt" "t1me" "t1n" "t1p" "t1re" "v1a" "v1ce" "v1e" "v1ew" "v1le"
+  "w1ck" "w1de" "w1fe" "w1ld" "w1le" "w1ll" "w1n" "w1nd" "w1ne" "w1pe"
+  "w1re" "w1se" "w1sh"
 
-  # Eight-Character Words/Phrases
-  "abadface" "abeeface" "acce55ed" "add0face" "ba5eba11" "badecafe" "badcoffee"
-  "beefcafe" "beefface" "c01dface" "cafeface" "cafebabe" "cafedeed" "c105ecab"
-  "c0deba5e" "d15ea5ed" "deadbeef" "deadface" "deafcafe" "defaced" "de1efed"
-  "f01dedad" "facecab" "face1e55" "face5afe" "feedface" "feedbabe"
+  # 5 as "s"
+  "a5h" "ba5e" "ba5h" "ba5k" "ba55" "boa5t" "bo55" "ca5e" "ca5h" "ca5t"
+  "cea5e" "che5t" "cla55" "clo5e" "co5t" "cra5h" "cre5t" "cro55" "de5k" "d15c"
+  "d15h" "do5e" "ea5e" "ea5t" "fa5t" "f15h" "f1r5t" "fl05h" "fo55" "fro5t"
+  "f05s" "ha5h" "ha5te" "ho5e" "ho5t" "la5t" "lea5e" "le55" "l15t" "lo5e"
+  "lo5s" "lo5t" "m15s" "m15t" "mo55" "mo5t" "ne5t" "no5e" "pa55" "pa5t"
+  "pa5te" "po5e" "po5t" "ra15e" "re5t" "ro5e" "5ad" "5afe" "5ale" "5alt"
+  "5ame" "5and" "5ave" "5aw" "5ay" "5ea" "5eal" "5eat" "5ell" "5end"
+  "5et" "5ew" "5hade" "5hake" "5hale" "5hame" "5hare" "5have" "5hed" "5heel"
+  "5hell" "5h1ft" "5h1ne" "5h1p" "5h1re" "5h1rt" "5hoe" "5hop" "5hore" "5hot"
+  "5how" "5hred" "5hy" "51de" "51ft" "51lk" "51ll" "51nce" "51t" "51te"
+  "51x" "5k1ll" "5k1m" "5k1n" "5lab" "5lam" "5lap" "5lave" "5lay" "5led"
+  "5leep" "5l1ce" "5l1ck" "5l1de" "5l1m" "5l1p" "5lot" "5low" "5mall" "5mell"
+  "5m1le" "5moke" "5nack" "5nap" "5narl" "5now" "5oak" "5oap" "5ock" "5od"
+  "5oft" "5o1l" "5old" "5ole" "5on" "5oon" "5ore" "5ort" "5oul" "5ound"
+  "5oup" "5our" "5ow" "5pace" "5pade" "5park" "5pear" "5peed" "5pell" "5pend"
+  "5p1ce" "5p1ll" "5p1n" "5p1t" "5pot" "5pray" "5tar" "5tart" "5tay" "5teal"
+  "5team" "5teel" "5tem" "5tep" "5tern" "5t1ck" "5t1ll" "5t1r" "5tone" "5top"
+  "5tore" "5torm" "5tory" "5tove" "5tra1n" "5traw" "5treak" "5tream" "5treet" "5tretch"
+
+  # 6 as "g"
+  "a6e" "ba6" "ba6el" "be6" "b16" "ca6e" "do6" "dra6" "e66" "f06"
+  "fla6" "fo6" "fra6" "6ap" "6a5" "6ate" "6ave" "6ear" "6em" "6et"
+  "61ft" "61rl" "61ve" "6lad" "6la55" "6lade" "6land" "6lare" "6la55" "6la55e5"
+  "6laze" "6l1de" "6l1nt" "6lobe" "6loom" "6love" "6low" "6lad" "6nat" "60"
+  "60al" "60at" "60ld" "60lf" "60ne" "600d" "600f" "60t" "6rab" "6race"
+  "6rade" "6ra1n" "6rape" "6ra5p" "6ra55" "6rate" "6rave" "6ray" "6raze" "6reat"
+  "6reed" "6reen" "6reet" "6r1d" "6r1ef" "6r1ll" "6r1m" "6r1n" "6r1p" "6r1t"
+  "6roan" "6roove" "6ro55" "6round" "6roup" "6row" "6rowl" "6runt" "6ue55" "6u1de"
+  "6u1lt" "6ulf" "6ull" "6um" "6un" "6ut" "ha6" "la6" "le6" "lo6"
+  "p16" "ra6" "5a6" "5ha6" "5la6" "5na6" "5ta6" "ta6" "wa6"
+
+  # Famous hex words
+  "cafe" "babe" "c0de" "deed" "face" "fade" "feed" "f00d" "dead" "beef"
+  "defaced" "decade" "facade" "decaf" "c0ffee" "bedface" "deadbeef" "badcafe"
 )
 
 # Determine maximum word length to know how many characters to check in each hash
@@ -67,6 +119,7 @@ max_length=8  # Let's cap at 8 chars, which is standard for Git hash prefixes
 echo "deface: Searching for fancy Git SHA1 hashes..."
 echo "Minimum word length to match: $MIN_LENGTH characters"
 echo "Maximum word length to match: $max_length characters"
+echo "Word list contains $(echo ${#fancy_words[@]}) possible matches"
 
 # Get the original commit details to preserve them
 original_hash=$(git rev-parse HEAD)
