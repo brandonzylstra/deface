@@ -49,6 +49,9 @@ echo "Generating hexadecimal words list from $DICT_FILE..."
 echo "Words must be at least $MIN_LENGTH characters long."
 
 # Function to check if a word can be represented in hex (with substitutions)
+# Global variable to store the converted word
+CONVERTED_WORD=""
+
 function is_hex_word() {
     local word=$(echo "$1" | tr '[:upper:]' '[:lower:]')  # Convert to lowercase
 
@@ -66,24 +69,33 @@ function is_hex_word() {
         # h,j,k,m,n,p,q,r,u,v,w,x,y,z cannot be represented in hex even with substitutions
         # Actually many can with complex substitutions but we'll keep it simple
         if echo "$word" | grep -q '[hjkmqruvwxyz]'; then
+            CONVERTED_WORD=""
             return 1  # Cannot be represented in hex even with substitutions
         fi
 
         # Convert words with substitutable letters
-        local converted=$(echo "$word" | sed 's/o/0/g; s/i/1/g; s/l/1/g; s/s/5/g; s/g/6/g; s/z/2/g; s/e/3/g; s/a/4/g; s/t/7/g; s/b/8/g; s/n/n/g; s/p/p/g')
+        local converted=$(echo "$word" | sed 's/o/0/g; s/i/1/g; s/l/1/g; s/s/5/g; s/g/6/g; s/z/2/g; s/e/3/g; s/a/4/g; s/t/7/g; s/b/8/g')
 
         # Check if the converted word is now in hex
         if echo "$converted" | grep -q '[^0-9a-f]'; then
             return 1  # Still contains non-hex characters
         fi
+        
+        # Store the converted word
+        CONVERTED_WORD="$converted"
     fi
 
+    # If word already only contains hex chars, store it as is
+    if ! echo "$word" | grep -q '[^0-9a-f]'; then
+        CONVERTED_WORD="$word"
+    fi
     return 0  # Is a valid hex word (or can be with substitutions)
 }
 
 # Process dictionary and write valid hex words to output file
 echo "# Hexadecimal Words (generated from $DICT_FILE)" > "$OUTPUT_FILE"
-echo "# Words that can be spelled using only a-f and 0-9 with substitutions" >> "$OUTPUT_FILE"
+echo "# Words that can be spelled using only a-f and 0-9 (after substitutions)" >> "$OUTPUT_FILE"
+echo "# These words are ALREADY SUBSTITUTED and ready for direct hash matching" >> "$OUTPUT_FILE"
 echo "# Minimum length: $MIN_LENGTH characters" >> "$OUTPUT_FILE"
 echo "# Generated on $(date)" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
@@ -101,9 +113,17 @@ while read -r word; do
     # Convert to lowercase for processing
     word=$(echo "$word" | tr '[:upper:]' '[:lower:]')
 
+    # Reset the converted word variable
+    CONVERTED_WORD=""
+    
     # Check if this word can be represented in hex
     if is_hex_word "$word"; then
-        valid_words+=("\"$word\"")
+        # Use the converted word (with number substitutions) instead of the original
+        if [[ -n "$CONVERTED_WORD" ]]; then
+            valid_words+=("\"$CONVERTED_WORD\"")
+        else
+            valid_words+=("\"$word\"")
+        fi
         ((count++))
 
         # Show progress every 1000 words
@@ -122,5 +142,5 @@ echo "$joined_words" >> "$OUTPUT_FILE"
 
 echo ")" >> "$OUTPUT_FILE"
 
-echo "Done! Found $count valid hexadecimal words."
+echo "Done! Found $count valid hexadecimal words (already substituted with numbers)."
 echo "Word list saved to $OUTPUT_FILE"
