@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # deface: A script to regenerate Git commit hashes until a "fancy" hash is found
-# Works by amending the current commit with new timestamps
+# Works by amending the current commit with new timestamps ONLY - never includes working tree changes
 
 # Check if we're in a git repository
 if ! git rev-parse --is-inside-work-tree &>/dev/null; then
@@ -15,15 +15,19 @@ if ! git rev-parse HEAD &>/dev/null; then
   exit 2
 fi
 
-# Check if the working directory is clean
+# CRITICAL SAFETY CHECK: Absolutely refuse to run if there are uncommitted changes
+# echo "Warning: You have uncommitted changes. These won't be included in the hash calculation."
+# echo "Consider committing or stashing your changes first."
+# read -q "REPLY?Continue anyway? (y/n) "
+# echo ""
+# if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+#   exit 3
+# fi
+
 if ! git diff-index --quiet HEAD --; then
-  echo "Warning: You have uncommitted changes. These won't be included in the hash calculation."
-  echo "Consider committing or stashing your changes first."
-  read -q "REPLY?Continue anyway? (y/n) "
-  echo ""
-  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    exit 3
-  fi
+  echo "⛔️ ERROR: You have uncommitted changes. This script WILL NOT run with uncommitted changes."
+  echo "Please commit or stash your changes first to prevent data loss."
+  exit 3
 fi
 
 # Define the minimum length for a meaningful match
@@ -68,6 +72,9 @@ echo "Maximum word length to match: $max_length characters"
 original_hash=$(git rev-parse HEAD)
 echo "Original hash: $original_hash"
 
+# Store the commit message to preserve it exactly
+commit_message=$(git log -1 --pretty=%B)
+
 # Counter for attempts
 attempt=0
 start_time=$(date +%s)
@@ -98,8 +105,9 @@ while true; do
   random_offset=$((RANDOM % 1000))
   new_timestamp=$(date -R -v+${random_offset}S 2>/dev/null || date -R --date="$random_offset seconds")
 
-  # Amend the commit with the new timestamp but preserve everything else
-  GIT_COMMITTER_DATE="$new_timestamp" git commit --amend --no-edit --date="$new_timestamp" >/dev/null
+  # SAFETY: Use --allow-empty to ensure we're ONLY changing the timestamp
+  # This prevents any staged but uncommitted changes from being included
+  env GIT_COMMITTER_DATE="$new_timestamp" git commit --amend --no-edit --date="$new_timestamp" --allow-empty >/dev/null
 
   # Get the new hash
   new_hash=$(git rev-parse HEAD)
