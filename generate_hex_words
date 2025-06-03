@@ -3,6 +3,16 @@
 # generate_hex_words
 # Script to generate a comprehensive list of words that can be spelled using hexadecimal characters
 # Uses the system dictionary on macOS/BSD systems
+# Usage:
+#   ./generate_hex_words             # Generate full word list
+#   ./generate_hex_words --test      # Quick test mode (stops after 10 words)
+
+# Check for test mode flag
+TEST_MODE=false
+if [[ "$1" == "--test" ]]; then
+    TEST_MODE=true
+    echo "Running in TEST MODE - will exit after finding 10 words"
+fi
 
 # Path to system dictionary
 DICT_FILE="/usr/share/dict/words"
@@ -42,11 +52,14 @@ fi
 # Minimum word length to consider
 MIN_LENGTH=4
 
-# Output file
+# Output file (not used in test mode)
 OUTPUT_FILE="hex_words.txt"
 
 echo "Generating hexadecimal words list from $DICT_FILE..."
 echo "Words must be at least $MIN_LENGTH characters long."
+if [[ "$TEST_MODE" == true ]]; then
+    echo "Test mode: Will stop after finding 10 words"
+fi
 
 # Function to check if a word can be represented in hex (with substitutions)
 # Global variable to store the converted word
@@ -92,17 +105,21 @@ function is_hex_word() {
     return 0  # Is a valid hex word (or can be with substitutions)
 }
 
-# Process dictionary and write valid hex words to output file
-echo "# Hexadecimal Words (generated from $DICT_FILE)" > "$OUTPUT_FILE"
-echo "# Words that can be spelled using only a-f and 0-9 (after substitutions)" >> "$OUTPUT_FILE"
-echo "# These words are ALREADY SUBSTITUTED and ready for direct hash matching" >> "$OUTPUT_FILE"
-echo "# Minimum length: $MIN_LENGTH characters" >> "$OUTPUT_FILE"
-echo "# Generated on $(date)" >> "$OUTPUT_FILE"
-echo "" >> "$OUTPUT_FILE"
+# Process dictionary and prepare for output
+if [[ "$TEST_MODE" == false ]]; then
+    # Create output file with header
+    echo "# Hexadecimal Words (generated from $DICT_FILE)" > "$OUTPUT_FILE"
+    echo "# Words that can be spelled using only a-f and 0-9 (after substitutions)" >> "$OUTPUT_FILE"
+    echo "# These words are ALREADY SUBSTITUTED and ready for direct hash matching" >> "$OUTPUT_FILE"
+    echo "# Minimum length: $MIN_LENGTH characters" >> "$OUTPUT_FILE"
+    echo "# Generated on $(date)" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+fi
 
-# First pass: collect all valid hex words
+# Collect valid hex words
 declare -a valid_words
 count=0
+test_examples=0
 
 while read -r word; do
     # Skip words that are too short
@@ -125,22 +142,35 @@ while read -r word; do
             valid_words+=("\"$word\"")
         fi
         ((count++))
-
-        # Show progress every 1000 words
-        if (( count % 1000 == 0 )); then
+        
+        # In test mode, display each word and exit after 10
+        if [[ "$TEST_MODE" == true ]]; then
+            ((test_examples++))
+            echo "Found hex word $test_examples: $CONVERTED_WORD (from \"$word\")"
+            if (( test_examples >= 10 )); then
+                echo "Test complete - found 10 words"
+                exit 0
+            fi
+        # In normal mode, show progress every 1000 words
+        elif (( count % 1000 == 0 )); then
             echo "Processed $count valid words so far..."
         fi
     fi
 done < "$DICT_FILE"
 
-# Write the array to the output file
-echo "fancy_words=(" >> "$OUTPUT_FILE"
+# Only write to file in normal mode
+if [[ "$TEST_MODE" == false ]]; then
+    # Write the array to the output file
+    echo "fancy_words=(" >> "$OUTPUT_FILE"
 
-# Join the array with spaces
-joined_words=$(printf "%s " "${valid_words[@]}")
-echo "$joined_words" >> "$OUTPUT_FILE"
+    # Join the array with spaces
+    joined_words=$(printf "%s " "${valid_words[@]}")
+    echo "$joined_words" >> "$OUTPUT_FILE"
 
-echo ")" >> "$OUTPUT_FILE"
+    echo ")" >> "$OUTPUT_FILE"
 
-echo "Done! Found $count valid hexadecimal words (already substituted with numbers)."
-echo "Word list saved to $OUTPUT_FILE"
+    echo "Done! Found $count valid hexadecimal words (already substituted with numbers)."
+    echo "Word list saved to $OUTPUT_FILE"
+else
+    echo "Test mode complete."
+fi
