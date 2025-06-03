@@ -1,0 +1,123 @@
+#!/bin/zsh
+
+# deface: A script to regenerate Git commit hashes until a "fancy" hash is found
+# Works by amending the current commit with new timestamps
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+  echo "Error: Not in a git repository."
+  exit 1
+fi
+
+# Check if we have a commit to work with
+if ! git rev-parse HEAD &>/dev/null; then
+  echo "Error: No commits found in repository."
+  exit 2
+fi
+
+# Check if the working directory is clean
+if ! git diff-index --quiet HEAD --; then
+  echo "Warning: You have uncommitted changes. These won't be included in the hash calculation."
+  echo "Consider committing or stashing your changes first."
+  read -q "REPLY?Continue anyway? (y/n) "
+  echo ""
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 3
+  fi
+fi
+
+# Define the minimum length for a meaningful match
+MIN_LENGTH=4
+
+# List of fancy hex words to search for (only meaningful ones, minimum 4 characters)
+fancy_words=(
+  # Pure Hexadecimal Words (4+ chars)
+  "acce55" "babe" "bade" "bead" "beef" "cafe" "cede" "c0de" "c0c0a" "c0ffee"
+  "dead" "deaf" "deed" "defa" "deface" "face" "facade" "fade" "faded" "feed"
+  "f00d" "f1fe" "fa1afe1"
+
+  # Words Using Number-Letter Substitutions (4+ chars)
+  "1cea" "1ced" "1d1e" "1dea" "2face" "4b1e" "4cc355" "4c1d" "4dded" "4dd1c7"
+  "5eed" "5e1f" "5ca1e" "5ca1ed" "5cafe" "61f7" "8a5e" "8a8e" "8a8e1"
+  "8a11" "8a55" "8ea7" "8eef" "81a5ed" "81de" "8ad6e" "8ea57" "8e11" "8e57"
+  "9a1a" "9ee5e" "decaf" "dec0de" "d15c" "d0deca" "fa11" "fa11ed" "fa7a1"
+  "fa7e" "fa7ed" "feeb1e" "f1e1d" "f1ee7" "f1055" "f01ded" "f055a"
+
+  # Notable Multi-word Phrases
+  "abadcab" "abaddad" "acce55c0de" "addbeef" "badbeef" "badcafe" "baddeed"
+  "babeface" "baff1ed" "ba1ded" "ba5ed" "be5afe" "bedead" "beeffeed" "b1eeded"
+  "ca5ec105ed" "c01dbeef" "c001cabe" "c001c0de" "c001dade" "d15c0bea7"
+  "deadbeef" "deadbed" "deadcafe" "deadfa11" "deafcab" "deafdad" "facedeed"
+  "facefeed" "fa15ec0de" "f1ee9a7e"
+
+  # Eight-Character Words/Phrases
+  "abadface" "abeeface" "acce55ed" "add0face" "ba5eba11" "badecafe" "badcoffee"
+  "beefcafe" "beefface" "c01dface" "cafeface" "cafebabe" "cafedeed" "c105ecab"
+  "c0deba5e" "d15ea5ed" "deadbeef" "deadface" "deafcafe" "defaced" "de1efed"
+  "f01dedad" "facecab" "face1e55" "face5afe" "feedface" "feedbabe"
+)
+
+# Determine maximum word length to know how many characters to check in each hash
+max_length=8  # Let's cap at 8 chars, which is standard for Git hash prefixes
+
+echo "deface: Searching for fancy Git SHA1 hashes..."
+echo "Minimum word length to match: $MIN_LENGTH characters"
+echo "Maximum word length to match: $max_length characters"
+
+# Get the original commit details to preserve them
+original_hash=$(git rev-parse HEAD)
+echo "Original hash: $original_hash"
+
+# Counter for attempts
+attempt=0
+start_time=$(date +%s)
+
+# Function to check if a hash prefix matches any word in our list
+function check_hash_match() {
+  local hash=$1
+  local prefix=${hash:0:$max_length}
+
+  for word in $fancy_words; do
+    word_length=${#word}
+    # Only consider matches of our minimum length or longer
+    if [[ $word_length -ge $MIN_LENGTH && ${prefix:0:$word_length} == $word ]]; then
+      echo "✅ Match found: ${prefix:0:$word_length} (from $hash)"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Keep trying until we find a match
+while true; do
+  ((attempt++))
+
+  # Calculate a new timestamp (current time plus random offset in seconds)
+  # This creates a unique commit timestamp for each attempt
+  random_offset=$((RANDOM % 1000))
+  new_timestamp=$(date -R -v+${random_offset}S 2>/dev/null || date -R --date="$random_offset seconds")
+
+  # Amend the commit with the new timestamp but preserve everything else
+  GIT_COMMITTER_DATE="$new_timestamp" git commit --amend --no-edit --date="$new_timestamp" >/dev/null
+
+  # Get the new hash
+  new_hash=$(git rev-parse HEAD)
+
+  # Display progress every 10 attempts
+  if (( attempt % 10 == 0 )); then
+    current_time=$(date +%s)
+    elapsed=$((current_time - start_time))
+    rate=$(printf "%.1f" $(echo "$attempt / $elapsed" | bc -l 2>/dev/null || echo "$attempt / $elapsed" | awk '{printf "%.1f", $1}'))
+    echo "Attempt $attempt ($rate hashes/sec): $new_hash"
+  fi
+
+  # Check if the hash matches any word in our list
+  if check_hash_match $new_hash; then
+    end_time=$(date +%s)
+    total_time=$((end_time - start_time))
+    echo "\nSuccess after $attempt attempts and $total_time seconds!"
+    echo "Final hash: $new_hash"
+    exit 0
+  fi
+done
